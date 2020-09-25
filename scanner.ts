@@ -27,7 +27,7 @@ export class WebScanner {
       if (!packageJson) continue;
       this.packages.set(packageJson.name, {
         entry: packageJson.name,
-        dependencies: Object.keys(packageJson.dependencies),
+        dependencies: Object.keys(packageJson.dependencies || {}),
         external: false,
       });
     }
