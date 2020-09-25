@@ -4,7 +4,6 @@ import { ensureDir } from 'https://deno.land/std/fs/mod.ts';
 interface IPackage {
   entry: string;
   dependencies: string[];
-  external: boolean;
 }
 
 export class WebScanner {
@@ -28,7 +27,6 @@ export class WebScanner {
       this.packages.set(packageJson.name, {
         entry: packageJson.name,
         dependencies: Object.keys(packageJson.dependencies || {}),
-        external: false,
       });
     }
     const rootNodes = new Set(this.packages.keys());
@@ -60,7 +58,6 @@ export class WebScanner {
     const rootPkg: IPackage = {
       entry: '',
       dependencies: Array.from(rootNodes),
-      external: false,
     };
     const cache = new Map();
     const queue: [{ pkg: IPackage, node: any }] = [{ pkg: rootPkg, node: rootNode }];
@@ -73,13 +70,21 @@ export class WebScanner {
         } else {
           const child = this.packages.get(dep);
           if (child) {
-            const { entry } = child;
             childNode = {
-              v: entry,
+              v: dep,
               c: [],
               d: node.d + 1,
             };
             queue.push({ pkg: child, node: childNode });
+          } else {
+            // childNode = {
+            //   v: `<span class="external">${dep}</span>`,
+            //   c: [],
+            //   d: node.d + 1,
+            //   p: {
+            //     f: true,
+            //   },
+            // };
           }
         }
         if (childNode) node.c.push(childNode);
