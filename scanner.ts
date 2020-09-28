@@ -9,10 +9,14 @@ interface IPackage {
 export class WebScanner {
   root: string;
   packages: Map<string, IPackage>;
+  roots: Set<string>;
 
-  constructor(entry: string) {
+  constructor(entry: string, options: {
+    roots?: Iterable<string>;
+  } = {}) {
     this.root = path.resolve(entry);
     this.packages = new Map();
+    this.roots = new Set(options.roots ?? []);
   }
 
   async check() {
@@ -57,30 +61,45 @@ export class WebScanner {
     };
     const rootPkg: IPackage = {
       entry: '',
-      dependencies: Array.from(rootNodes),
+      dependencies: Array.from(this.roots || rootNodes),
     };
     const cache = new Map();
-    const queue: [{ pkg: IPackage, node: any }] = [{ pkg: rootPkg, node: rootNode }];
+    const queue: [{ pkg: IPackage, node: any, ancesters: Set<string> }] = [{
+      pkg: rootPkg,
+      node: rootNode,
+      ancesters: new Set(),
+    }];
     while (queue.length) {
-      const { pkg, node } = queue.shift()!;
+      const { pkg, node, ancesters } = queue.shift()!;
       pkg.dependencies?.forEach(dep => {
         let childNode;
+        const childDepth = node.d + 1;
         if (cache.has(dep)) {
           childNode = cache.get(dep);
+        } else if (ancesters.has(dep)) {
+          // Circular dependency detected
+          childNode = {
+            v: `<span class="danger">[Circular] ${dep}</span>`,
+            c: [],
+            d: childDepth,
+          };
         } else {
           const child = this.packages.get(dep);
           if (child) {
             childNode = {
               v: dep,
               c: [],
-              d: node.d + 1,
+              d: childDepth,
+              p: { f: childDepth > 1 },
             };
-            queue.push({ pkg: child, node: childNode });
+            const childAncesters = new Set(ancesters);
+            childAncesters.add(dep);
+            queue.push({ pkg: child, node: childNode, ancesters: childAncesters });
           } else {
             // childNode = {
             //   v: `<span class="external">${dep}</span>`,
             //   c: [],
-            //   d: node.d + 1,
+            //   d: childDepth,
             //   p: {
             //     f: true,
             //   },

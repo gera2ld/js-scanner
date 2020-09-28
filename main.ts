@@ -5,8 +5,15 @@ import { WebScanner } from './scanner.ts';
 const cli = cac('appx-scanner');
 
 cli.command('<entry>')
-.action(async (entry: string) => {
-  const scanner = new WebScanner(entry);
+.option('-r, --root <subtree>', 'Render subtree', {
+  type: [String],
+})
+.action(async (entry: string, options: {
+  root: string[],
+}) => {
+  const scanner = new WebScanner(entry, {
+    roots: options.root,
+  });
   await scanner.check();
 });
 
