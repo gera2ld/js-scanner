@@ -6,10 +6,19 @@ interface IPackage {
   dependencies: string[];
 }
 
+interface IGraphNode {
+  entry: string;
+  name: string;
+  weight: number;
+}
+
 export class WebScanner {
   root: string;
   packages: Map<string, IPackage>;
   roots: Set<string>;
+  meta: {
+    name?: string;
+  };
 
   constructor(entry: string, options: {
     roots?: Iterable<string>;
@@ -17,6 +26,7 @@ export class WebScanner {
     this.root = path.resolve(entry);
     this.packages = new Map();
     this.roots = new Set(options.roots ?? []);
+    this.meta = {};
   }
 
   async check() {
@@ -54,14 +64,21 @@ export class WebScanner {
       rootPkgJson = JSON.parse(text);
       break;
     }
+    if (!this.roots.size) this.roots = rootNodes;
+    this.meta.name = rootPkgJson.name;
+    await this.generateHierarchy();
+    await this.analyze();
+  }
+
+  async generateHierarchy() {
     const rootNode = {
-      v: rootPkgJson?.name,
+      v: this.meta.name,
       c: [],
       d: 0,
     };
     const rootPkg: IPackage = {
       entry: '',
-      dependencies: Array.from(this.roots || rootNodes),
+      dependencies: Array.from(this.roots),
     };
     const cache = new Map();
     const queue: [{ pkg: IPackage, node: any, ancesters: Set<string> }] = [{
@@ -110,6 +127,32 @@ export class WebScanner {
       });
     }
     await this.render('hierarchy', rootNode);
+  }
+  
+  async analyze() {
+    const nodeMap = new Map<string, IGraphNode>();
+    const links = [];
+    for (const [, pkg] of this.packages) {
+      const parts = pkg.entry.split('/');
+      let name = parts.pop();
+      if (name === 'index') name = parts.pop();
+      nodeMap.set(pkg.entry, {
+        name: name || '',
+        entry: pkg.entry,
+        weight: 0,
+      });
+      for (const dep of pkg.dependencies) {
+        links.push([pkg.entry, dep]);
+      }
+    }
+    for (const entries of links) {
+      for (const entry of entries) {
+        const node = nodeMap.get(entry);
+        if (node) node.weight += 1;
+      }
+    }
+    const nodes = Array.from(nodeMap.values());
+    await this.render('graph', { nodes, links });
   }
 
   async render(key: string, data: any) {
